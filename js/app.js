@@ -176,62 +176,56 @@ function renderProfessor(el){
  //document.getElementById('btnOut').addEventListener('click', async ()=>{ const uid=document.getElementById('prof_scan').value.trim(); const subj=parseInt(document.getElementById('prof_subject').value); if(!uid) return alert('Enter UID'); const student = DATA.students.find(s=>s.student_no===uid); if(!student) return alert('Unknown student'); const ts=await nowISO(); const id=DATA.attendance.length?Math.max(...DATA.attendance.map(x=>x.id))+1:1; DATA.attendance.push({id,student_id:student.id,subject_id:subj,timestamp:ts,action:'OUT'}); saveData(); document.getElementById('prof_scan').value=''; renderProfessor(el); });
  //document.getElementById('btnIn').addEventListener('click', async ()=>{ ... });
  //document.getElementById('btnOut').addEventListener('click', async ()=>{ ... });
-  document.getElementById('prof_scan').addEventListener('keydown', async (e) => {
-    if (e.key !== "Enter") return;
+document.getElementById('btnIn').addEventListener('click', async ()=>{
+    const uid=document.getElementById('prof_scan').value.trim();
+    const subj=parseInt(document.getElementById('prof_subject').value);
 
-    e.preventDefault();
-    const uid = e.target.value.trim();
-    const subj = parseInt(document.getElementById('prof_subject').value);
-    const msg = document.getElementById('prof_msg');
+    if(!uid) return alert('Enter UID');
+    const student = DATA.students.find(s=>s.student_no===uid);
+    if(!student) return alert('Unknown student');
 
-    if (!uid) {
-        msg.innerText = "No UID detected.";
-        return;
-    }
+    const ts = await nowISO(); // actual tap time (ISO)
 
-    const student = DATA.students.find(s => s.student_no === uid);
-    if (!student) {
-        msg.innerText = "Unknown student UID";
-        e.target.value = "";
-        return;
-    }
+    // 🔍 Find today's schedule for this subject
+    const nowDate = new Date(ts);
+    const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const today = dayNames[nowDate.getDay()];
 
-    const ts = await nowISO();
+    const sched = DATA.schedules.find(s => 
+        s.subject_id === subj &&
+        s.day === today &&
+        s.section === student.section
+    );
 
-    // CHECK LAST TAP OF SAME STUDENT
-    const last = DATA.attendance
-        .filter(a => a.student_id === student.id)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+    let status = "PRESENT";
 
-    if (last) {
-        const diffMin = (new Date(ts) - new Date(last.timestamp)) / 60000;
+    if (sched) {
+        // combine today's date + schedule time
+        const schedDateTime = new Date(
+            nowDate.toISOString().split("T")[0] + "T" + sched.time + ":00"
+        );
 
-        // If tapped again within 5 minutes → ignore
-        if (diffMin < 5) {
-            msg.innerText = `Ignored duplicate tap (${diffMin.toFixed(1)} min interval).`;
-            e.target.value = "";
-            return;
+        // compare tap time with schedule time
+        if (nowDate > schedDateTime) {
+            status = "LATE";
         }
     }
 
-    // RECORD TAP-AS-IN
-    const id = DATA.attendance.length
-        ? Math.max(...DATA.attendance.map(x => x.id)) + 1
-        : 1;
+    const id = DATA.attendance.length?Math.max(...DATA.attendance.map(x=>x.id))+1:1;
 
     DATA.attendance.push({
         id,
         student_id: student.id,
         subject_id: subj,
         timestamp: ts,
-        action: "IN"
+        action: status // 👈 Save PRESENT or LATE instead of just IN
     });
 
     saveData();
-    msg.innerText = `${student.name} – Tap recorded`;
-    e.target.value = "";
+    document.getElementById('prof_scan').value='';
     renderProfessor(el);
 });
+
 ///////
 
 
