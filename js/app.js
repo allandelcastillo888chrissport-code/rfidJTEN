@@ -172,10 +172,67 @@ function renderProfessor(el){
     <div class="mt-4 bg-white p-4 rounded shadow"><h3 class="font-semibold">Recent Attendance</h3><div id="attList" class="mt-2 text-sm"></div></div>
   </div>`;
   document.getElementById('startSess').addEventListener('click', ()=>{ document.getElementById('prof_scan').focus(); document.getElementById('prof_msg').innerText='Session active'; });
-  document.getElementById('btnIn').addEventListener('click', async ()=>{ const uid=document.getElementById('prof_scan').value.trim(); const subj=parseInt(document.getElementById('prof_subject').value); if(!uid) return alert('Enter UID'); const student = DATA.students.find(s=>s.student_no===uid); if(!student) return alert('Unknown student'); const ts=await nowISO(); const id=DATA.attendance.length?Math.max(...DATA.attendance.map(x=>x.id))+1:1; DATA.attendance.push({id,student_id:student.id,subject_id:subj,timestamp:ts,action:'IN'}); saveData(); document.getElementById('prof_scan').value=''; renderProfessor(el); });
-  document.getElementById('btnOut').addEventListener('click', async ()=>{ const uid=document.getElementById('prof_scan').value.trim(); const subj=parseInt(document.getElementById('prof_subject').value); if(!uid) return alert('Enter UID'); const student = DATA.students.find(s=>s.student_no===uid); if(!student) return alert('Unknown student'); const ts=await nowISO(); const id=DATA.attendance.length?Math.max(...DATA.attendance.map(x=>x.id))+1:1; DATA.attendance.push({id,student_id:student.id,subject_id:subj,timestamp:ts,action:'OUT'}); saveData(); document.getElementById('prof_scan').value=''; renderProfessor(el); });
+ //document.getElementById('btnIn').addEventListener('click', async ()=>{ const uid=document.getElementById('prof_scan').value.trim(); const subj=parseInt(document.getElementById('prof_subject').value); if(!uid) return alert('Enter UID'); const student = DATA.students.find(s=>s.student_no===uid); if(!student) return alert('Unknown student'); const ts=await nowISO(); const id=DATA.attendance.length?Math.max(...DATA.attendance.map(x=>x.id))+1:1; DATA.attendance.push({id,student_id:student.id,subject_id:subj,timestamp:ts,action:'IN'}); saveData(); document.getElementById('prof_scan').value=''; renderProfessor(el); });
+ //document.getElementById('btnOut').addEventListener('click', async ()=>{ const uid=document.getElementById('prof_scan').value.trim(); const subj=parseInt(document.getElementById('prof_subject').value); if(!uid) return alert('Enter UID'); const student = DATA.students.find(s=>s.student_no===uid); if(!student) return alert('Unknown student'); const ts=await nowISO(); const id=DATA.attendance.length?Math.max(...DATA.attendance.map(x=>x.id))+1:1; DATA.attendance.push({id,student_id:student.id,subject_id:subj,timestamp:ts,action:'OUT'}); saveData(); document.getElementById('prof_scan').value=''; renderProfessor(el); });
  //document.getElementById('btnIn').addEventListener('click', async ()=>{ ... });
  //document.getElementById('btnOut').addEventListener('click', async ()=>{ ... });
+  document.getElementById('prof_scan').addEventListener('keydown', async (e) => {
+    if (e.key !== "Enter") return;
+
+    e.preventDefault();
+    const uid = e.target.value.trim();
+    const subj = parseInt(document.getElementById('prof_subject').value);
+    const msg = document.getElementById('prof_msg');
+
+    if (!uid) {
+        msg.innerText = "No UID detected.";
+        return;
+    }
+
+    const student = DATA.students.find(s => s.student_no === uid);
+    if (!student) {
+        msg.innerText = "Unknown student UID";
+        e.target.value = "";
+        return;
+    }
+
+    const ts = await nowISO();
+
+    // CHECK LAST TAP OF SAME STUDENT
+    const last = DATA.attendance
+        .filter(a => a.student_id === student.id)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+
+    if (last) {
+        const diffMin = (new Date(ts) - new Date(last.timestamp)) / 60000;
+
+        // If tapped again within 5 minutes → ignore
+        if (diffMin < 5) {
+            msg.innerText = `Ignored duplicate tap (${diffMin.toFixed(1)} min interval).`;
+            e.target.value = "";
+            return;
+        }
+    }
+
+    // RECORD TAP-AS-IN
+    const id = DATA.attendance.length
+        ? Math.max(...DATA.attendance.map(x => x.id)) + 1
+        : 1;
+
+    DATA.attendance.push({
+        id,
+        student_id: student.id,
+        subject_id: subj,
+        timestamp: ts,
+        action: "IN"
+    });
+
+    saveData();
+    msg.innerText = `${student.name} – Tap recorded`;
+    e.target.value = "";
+    renderProfessor(el);
+});
+///////
 
 
   function refreshLoa(){ const pending=(DATA.absences||[]).filter(x=>x.status==='Pending'); const html=pending.map(r=>{ const s=DATA.students.find(st=>st.id===r.student_id)||{}; return `<div class="p-2 border rounded mb-2"><div><strong>${s.name||''}</strong> (${s.student_no||''})</div><div class="text-sm">${r.reason} — ${r.timestamp}</div><div class="mt-2"><button class="approveLoa bg-green-600 text-white px-3 py-1 rounded" data-id="${'${'}r.id${'}'}">Approve</button> <button class="rejectLoa bg-red-500 text-white px-3 py-1 rounded" data-id="${'${'}r.id${'}'}">Reject</button></div></div>`; }).join('')||'<div>No pending</div>'; document.getElementById('pendingLoa').innerHTML=html; document.querySelectorAll('.approveLoa').forEach(b=> b.addEventListener('click', (e)=>{ const id=parseInt(e.target.dataset.id); const req=(DATA.absences||[]).find(x=>x.id===id); if(!req) return; req.status='Approved'; saveData(); refreshLoa(); })); document.querySelectorAll('.rejectLoa').forEach(b=> b.addEventListener('click', (e)=>{ const id=parseInt(e.target.dataset.id); const req=(DATA.absences||[]).find(x=>x.id===id); if(!req) return; req.status='Rejected'; saveData(); refreshLoa(); })); }
